@@ -17,6 +17,12 @@ const studentsPerPage = 9;
 // We show page nr 1 by default
 let activePage = 1;
 
+// the always up-to-date student list the pagination event handler works with
+// without this global variable, I can't get the student data updated after a
+// user search in the 'paginationEventListener' event handler inside the
+// addPagination() function
+let studentData = [...data];
+
 /* 
   This function adds a maximum of 'studentsPerPage' li elements with students' 
   data taken from the 'list' parameter and appends it to the unordered 
@@ -36,7 +42,7 @@ function showPage(list, page) {
       return (
          `<li class="student-item cf">` +        
             `<div class="student-details">` + 
-            `<img class="avatar" src="${student.picture.thumbnail}" alt="Profile Picture">` +
+            `<img class="avatar" src="${student.picture.large}" alt="Profile Picture">` +
             `<h3>${student.name.first} ${student.name.last}</h3>` +
             `<span class="email">${student.email}</span>` +
             `</div>` +
@@ -64,6 +70,11 @@ function showPage(list, page) {
       const student = createLI(list[i]);
       ul.insertAdjacentHTML('beforeend', student);
    }
+
+   // If 'list' contains zero students, let the user know 
+   if(ul.children.length === 0) {
+      ul.insertAdjacentHTML('afterbegin', `<h2>Your search did not produce any result</h2>`);   
+   }
 }
 
 /*
@@ -73,6 +84,7 @@ function showPage(list, page) {
 */
 function addPagination(list) {
 
+   // returns a string containing a(n active) button inside an li
    function createButtonLi(text, isActive) {
       let className = '';
       if(isActive) {
@@ -85,23 +97,7 @@ function addPagination(list) {
       );
    }
 
-   // The last page might not contain 9 students, hence Match.ceil()
-   const nrPages = Math.ceil(list.length / studentsPerPage);
-
-   // select the correct unordered list to which we'll add the page nr buttons
-   let ul = document.querySelector('ul.link-list');
-
-   // start with 0 buttons
-   ul.innerHTML = '';
-
-   // add the buttons for each page to the unordered list
-   for(let i = 1; i <= nrPages; i++) {      
-      const buttonLi = createButtonLi(i, i === activePage);
-      ul.insertAdjacentHTML('beforeend', buttonLi);
-   } 
-   
-   // The below event handler listens for page-button clicks
-   ul.addEventListener('click', (event) => {
+   function paginationEventListener(event) {
 
       // only proceed if the user clicked on an actual button
       if(event.target.tagName !== 'BUTTON') {
@@ -125,17 +121,42 @@ function addPagination(list) {
 
          // keep track of the currently active page
          activePage = selectedPage;
+
          
          // and finally show the new page
-         showPage(data, activePage);
+         // showPage(list, activePage);      // list does not get updated
+         showPage(studentData, activePage);  // so we need to use a global variable
       }        
-   });
+   }   
+
+   // update the global variable based on the list parameter:
+   studentData = list;
+
+   // The last page might not contain 9 students, hence Match.ceil()
+   const nrPages = Math.ceil(list.length / studentsPerPage);
+
+   // select the correct unordered list to which we'll add the page nr buttons
+   let ul = document.querySelector('ul.link-list');
+
+   // start with 0 buttons
+   ul.innerHTML = '';
+
+   // add the buttons for each page to the unordered list
+   for(let i = 1; i <= nrPages; i++) {      
+      const buttonLi = createButtonLi(i, i === activePage);
+      ul.insertAdjacentHTML('beforeend', buttonLi);
+   } 
+   
+   // The below event handler listens for page-button clicks
+   ul.removeEventListener('click', paginationEventListener, false);
+   ul.addEventListener('click', paginationEventListener, false);
 }
 
 /*
    The addSearch function 
 */
-function addSearch(data) {
+function addSearch(list) {
+
    function createSearchDialog() {
       return (
          `<label for="search" class="student-search">` +
@@ -146,34 +167,42 @@ function addSearch(data) {
       );
    }
 
-   const studentsHeader = document.querySelector('header.header');
-   studentsHeader.insertAdjacentHTML('beforeend', createSearchDialog());
-
-   studentsHeader.addEventListener('input', (event) => {      
+   function searchEventListener(event) {
+      console.log('fired searchEventListener');
       const userInput = event.target.value.toUpperCase();
       const studentList = [];
-      for(let i = 0; i < data.length; i++) {
-         const student = data[i];
-         const studentName = `${student.name.first} ${student.name.last}`.toUpperCase();
-         
-         const trimmedName = studentName.substring(0, userInput.length);
-         if(userInput === trimmedName) {
-            studentList.push(student)   ;
+      for(let i = 0; i < list.length; i++) {
+         const student = list[i];
+         const studentName = `${student.name.first} ${student.name.last}`.toUpperCase();        
+         if(studentName.includes(userInput)) {
+            studentList.push(student);
          }
-
-         // todo: show message "no students found" if returning empty set
       }
       activePage = 1;
       showPage(studentList, activePage);
-      addPagination(studentList);
-   });
 
+      // only add pagination if needed
+      if(studentList.length > studentsPerPage) {
+         addPagination(studentList);
+      } 
+      else {
+         // hide pagination
+         document.querySelector('ul.link-list').innerHTML = '';
+      }
+
+   }
+
+   const studentsHeader = document.querySelector('header.header');
+   studentsHeader.insertAdjacentHTML('beforeend', createSearchDialog());   
+   studentsHeader.addEventListener('input', searchEventListener, false);
 }
 
 // Call functions
 showPage(data, activePage);
 addPagination(data);
 addSearch(data);
+
+
 
 
 
