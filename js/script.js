@@ -96,9 +96,8 @@ function addPagination(list) {
 
    // add the buttons for each page to the unordered list
    for(let i = 1; i <= nrPages; i++) {      
-      const button = createButtonLi(i, i === activePage);
-      //ul.appendChild(button);
-      ul.insertAdjacentHTML('beforeend', button);
+      const buttonLi = createButtonLi(i, i === activePage);
+      ul.insertAdjacentHTML('beforeend', buttonLi);
    } 
    
    // The below event handler listens for page-button clicks
@@ -118,8 +117,10 @@ function addPagination(list) {
          // get a list of buttons
          let lis = ul.children;
 
-         // highlight the button of the currently active page
+         // remove the highlight from the previously active page...
          lis[activePage - 1].querySelector('button').className = '';
+
+         // ...and highlight the button of the currently active page
          lis[selectedPage - 1].querySelector('button').className = 'active';
 
          // keep track of the currently active page
@@ -131,9 +132,48 @@ function addPagination(list) {
    });
 }
 
+/*
+   The addSearch function 
+*/
+function addSearch(data) {
+   function createSearchDialog() {
+      return (
+         `<label for="search" class="student-search">` +
+            `<span>Search by name</span>` +
+            `<input id="search" placeholder="Search by name...">` +
+            `<button type="button"><img src="img/icn-search.svg" alt="Search icon"></button>` +
+         `</label>`
+      );
+   }
+
+   const studentsHeader = document.querySelector('header.header');
+   studentsHeader.insertAdjacentHTML('beforeend', createSearchDialog());
+
+   studentsHeader.addEventListener('input', (event) => {      
+      const userInput = event.target.value.toUpperCase();
+      const studentList = [];
+      for(let i = 0; i < data.length; i++) {
+         const student = data[i];
+         const studentName = `${student.name.first} ${student.name.last}`.toUpperCase();
+         
+         const trimmedName = studentName.substring(0, userInput.length);
+         if(userInput === trimmedName) {
+            studentList.push(student)   ;
+         }
+
+         // todo: show message "no students found" if returning empty set
+      }
+      activePage = 1;
+      showPage(studentList, activePage);
+      addPagination(studentList);
+   });
+
+}
+
 // Call functions
 showPage(data, activePage);
 addPagination(data);
+addSearch(data);
 
 
 
