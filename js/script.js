@@ -3,7 +3,13 @@
    FSJS Project 2 - Data Pagination and Filtering
 */
 
-
+/*
+   Credit must go to the student success specialist Marie Ehrman who helped me 
+   finding the origin of a problem with the search function which was related 
+   to unexpected behaviour of the removeEventListener() function. Without her 
+   help I would have been obliged to use an additional global variable to get 
+   the search function to work as proscribed, which was less elegant.
+*/
 
 /*
 For assistance:
@@ -17,23 +23,18 @@ const studentsPerPage = 9;
 // We show page nr 1 by default
 let activePage = 1;
 
-// the always up-to-date student list the pagination event handler works with
-// without this global variable, I can't get the student data updated after a
-// user search in the 'paginationEventListener' event handler inside the
-// addPagination() function
-let studentData = [...data];
-
-/* 
-  This function adds a maximum of 'studentsPerPage' li elements with students' 
-  data taken from the 'list' parameter and appends it to the unordered 
-  list with the class 'student-list' in index.html.
-
-  - 'studentsPerPage' is a global constant.
-  - 'list' is an array of objects with student data. See data.js for an 
-  example as to what 'list' should look like.
-  - The pages are numbered from 1. A value of 1 for 'page' will display 
-  the first set of 'studentsPerPage' nr of students from the 'list' array.
-*/
+/**
+ * Shows a subset of 9 students among a set of students provided by the
+ * 'list' parameter. The size of the subset (9) can be changed by modifying
+ * the 'studentsPerPage' constant. Which subset is shown is defined by the
+ * second 'page' parameter, which is 1 based. So a value of 1 for 'page'
+ * will show the first 9 students (if the 'list' set contains 9 or more 
+ * students of course).
+ * 
+ * @param {array of objects} list - the set of students 
+ * @param {number} page - The page number that should be shown
+ * @returns nothing
+ */
 function showPage(list, page) { 
 
    // The createLI function creates an li containing the data of the 'student'
@@ -56,7 +57,8 @@ function showPage(list, page) {
    // the parameter is 1 based so we subtract one to get the correct first index
    const startIndex = (page - 1) * studentsPerPage;
 
-   // maked sure we are not trying to show more students than there are in the dataset
+   // maked sure we are not trying to show more students than there are in the dataset.
+   // The last index is (endIndex - 1)!
    const endIndex = Math.min(page * studentsPerPage, list.length);
 
    // select the unordered list to which we'll add the students
@@ -77,11 +79,18 @@ function showPage(list, page) {
    }
 }
 
-/*
-   The addPagination function will create a list of buttons for each page 
-   of students and add an event handler for these buttons that call the 
-   showPage() function with the page nr the user selected as parameter.
-*/
+/**
+ * Shows a subset of 9 students among a set of students provided by the
+ * 'list' parameter. The size of the subset (9) can be changed by modifying
+ * the 'studentsPerPage' constant. Which subset is shown is defined by the
+ * second 'page' parameter, which is 1 based. So a value of 1 for 'page'
+ * will show the first 9 students (if the 'list' set contains 9 or more 
+ * students of course).
+ * 
+ * @param {array of objects} list - the set of students 
+ * @param {number} page - The page number that should be shown
+ * @returns nothing
+ */
 function addPagination(list) {
 
    // returns a string containing a(n active) button inside an li
@@ -97,40 +106,37 @@ function addPagination(list) {
       );
    }
 
+   // The following event Listener checks for clicks on the button links
+   // representing the different pages. It will not redraw if the user
+   // clicks on the currently active page number.
    function paginationEventListener(event) {
 
       // only proceed if the user clicked on an actual button
-      if(event.target.tagName !== 'BUTTON') {
-         return;
+      if(event.target.tagName === 'BUTTON') {
+
+         // extract the page/ button number from the event data
+         const selectedPage = parseInt(event.target.innerText);
+      
+         // reload if the user selected a page that differs from the current one
+         if(selectedPage !== activePage) {
+
+            // get a list of buttons
+            let lis = ul.children;
+
+            // remove the highlight from the previously active page...
+            lis[activePage - 1].querySelector('button').className = '';
+
+            // ...and highlight the button of the currently active page
+            lis[selectedPage - 1].querySelector('button').className = 'active';
+
+            // keep track of the currently active page
+            activePage = selectedPage;
+            
+            // and finally show the new page
+            showPage(list, activePage);  
+         }    
       }
-
-      // extract the page/ button number from the event data
-      const selectedPage = parseInt(event.target.innerText);
-     
-      // reload if the user selected a page that differs from the current one
-      if(selectedPage !== activePage) {
-
-         // get a list of buttons
-         let lis = ul.children;
-
-         // remove the highlight from the previously active page...
-         lis[activePage - 1].querySelector('button').className = '';
-
-         // ...and highlight the button of the currently active page
-         lis[selectedPage - 1].querySelector('button').className = 'active';
-
-         // keep track of the currently active page
-         activePage = selectedPage;
-
-         
-         // and finally show the new page
-         // showPage(list, activePage);      // list does not get updated
-         showPage(studentData, activePage);  // so we need to use a global variable
-      }        
    }   
-
-   // update the global variable based on the list parameter:
-   studentData = list;
 
    // The last page might not contain 9 students, hence Match.ceil()
    const nrPages = Math.ceil(list.length / studentsPerPage);
@@ -147,37 +153,75 @@ function addPagination(list) {
       ul.insertAdjacentHTML('beforeend', buttonLi);
    } 
    
-   // The below event handler listens for page-button clicks
-   ul.removeEventListener('click', paginationEventListener, false);
-   ul.addEventListener('click', paginationEventListener, false);
+   // Install the event handler that listens for page-button clicks
+   /*
+      Each time the addPagination function is called, the event listener is added. The
+      <element>.addEventListener() function does not overwrite the previous one, so we
+      need to remove the previous event listener first. Logically we should then call 
+      the <element>.removeEventListener() before we add it again. This however does not
+      work as expected, for a yet unknown reason. 
+      No matter how often you call removeEventListener(), it will never remove *all*
+      event listeners, which causes a minimum of two event listeners to be active,
+      which in turn causes a major dysfunction with the search functionality.
+      So instead I used "ul.onclick = paginationEventListener;" as this DOES effectively
+      remove all previous event listeners.
+   */
+   // Original code (removeEventListener never removes the originally added eventListener):
+   //ul.removeEventListener('click', paginationEventListener, true);
+   //ul.addEventListener('click', paginationEventListener, true); 
+
+   // was replaced with (this *does* remove all previous eventListeners):
+   ul.onclick = paginationEventListener;
 }
 
-/*
-   The addSearch function 
-*/
+/**
+ * This function adds the student search functionality by adding the search 
+ * dialog as well as adding an event listener to the search dialog. 
+ * A new search will be done each time the user changes the query, and
+ * the result of the search will be displayed immediately.
+ * Any match will yield a result i.e. a student named "Valerie Woda" will show
+ * up for the query "eri". The search is not case sensitive.
+ * 
+ * @param {array of objects} list - the set of students on which to run each query
+ * @returns nothing
+ */
 function addSearch(list) {
 
+   // return the search dialog html as a string
    function createSearchDialog() {
       return (
          `<label for="search" class="student-search">` +
             `<span>Search by name</span>` +
             `<input id="search" placeholder="Search by name...">` +
-            `<button type="button"><img src="img/icn-search.svg" alt="Search icon"></button>` +
+            `<button type="button">` +
+               `<img src="img/icn-search.svg" alt="Search icon">` + 
+            `</button>` +
          `</label>`
       );
    }
 
+   // The event listener for the search dialog
    function searchEventListener(event) {
-      console.log('fired searchEventListener');
+
+      // convert the user-entered query to uppercase
       const userInput = event.target.value.toUpperCase();
+
+      // start with a set of 0 results
       const studentList = [];
+
+      // loop through the base set and look for matches
       for(let i = 0; i < list.length; i++) {
          const student = list[i];
+
+         // create a string with first and last name & convert to uppercase
          const studentName = `${student.name.first} ${student.name.last}`.toUpperCase();        
+
+         // add the student to the subset if we found a match
          if(studentName.includes(userInput)) {
             studentList.push(student);
          }
       }
+      // show the first page of the subset of students
       activePage = 1;
       showPage(studentList, activePage);
 
@@ -189,20 +233,19 @@ function addSearch(list) {
          // hide pagination
          document.querySelector('ul.link-list').innerHTML = '';
       }
-
    }
 
+   // Insert the search dialog & event listener into the DOM
    const studentsHeader = document.querySelector('header.header');
    studentsHeader.insertAdjacentHTML('beforeend', createSearchDialog());   
-   studentsHeader.addEventListener('input', searchEventListener, false);
+   studentsHeader.addEventListener('input', searchEventListener);
 }
+
+// *********************
+// Start of main program
+// *********************
 
 // Call functions
 showPage(data, activePage);
 addPagination(data);
 addSearch(data);
-
-
-
-
-
